@@ -1593,13 +1593,6 @@ export default function FacialAnalysisApp() {
                                         console.log('Current step:', step);
                                         console.log('loadingRecommendations state:', loadingRecommendations);
                                         
-                                        // Test environment variables
-                                        console.log('� ENV TEST:');
-                                        console.log('All import.meta.env:', import.meta.env);
-                                        console.log('VITE_OPENAI_API_KEY exists:', !!import.meta.env.VITE_OPENAI_API_KEY);
-                                        console.log('VITE_OPENAI_API_KEY length:', import.meta.env.VITE_OPENAI_API_KEY?.length || 0);
-                                        console.log('First 20 chars:', import.meta.env.VITE_OPENAI_API_KEY?.substring(0, 20) || 'MISSING');
-                                        
                                         console.log('🔥 AI Tips button clicked!');
                                         console.log('Scores object:', scores);
                                         console.log('Scores features:', scores?.features);
@@ -2243,3 +2236,6 @@ export default function FacialAnalysisApp() {
         </div>
     );
 }
+
+
+
