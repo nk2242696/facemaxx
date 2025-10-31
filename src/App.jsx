@@ -16,15 +16,129 @@ export default function FacialAnalysisApp() {
     const [aiRecommendations, setAiRecommendations] = useState({});
     const [loadingRecommendations, setLoadingRecommendations] = useState(false);
     const [expandedRecommendation, setExpandedRecommendation] = useState(null);
+    const [detailedGuide, setDetailedGuide] = useState(null);
+    const [loadingDetailedGuide, setLoadingDetailedGuide] = useState(false);
+    const [theme, setTheme] = useState('teal'); // 'teal', 'purple', 'blue', 'green', 'rose'
+    const [showThemeSelector, setShowThemeSelector] = useState(false);
     const fileInputRef = useRef(null);
     const videoRef = useRef(null);
     const imageRef = useRef(null);
     const [stream, setStream] = useState(null);
 
+    // Theme configurations
+    const themes = {
+        teal: {
+            name: 'Ocean Breeze',
+            bg: 'from-slate-950 via-teal-950 to-slate-950',
+            primary: 'from-teal-500 to-cyan-600',
+            secondary: 'from-orange-500 to-orange-600',
+            accent: 'teal-400',
+            gradient: 'from-teal-500 via-cyan-600 to-orange-500',
+            orb1: 'bg-teal-500',
+            orb2: 'bg-cyan-500',
+            orb3: 'bg-orange-500',
+            glow: 'shadow-teal-500/30',
+            text: 'from-white via-teal-200 to-cyan-200',
+            border: 'border-teal-500/30',
+            hover: 'hover:shadow-teal-500/20 hover:border-teal-500/30',
+            excellent: 'from-teal-400 to-cyan-500',
+        },
+        purple: {
+            name: 'Royal Purple',
+            bg: 'from-slate-950 via-purple-950 to-slate-950',
+            primary: 'from-purple-500 to-pink-600',
+            secondary: 'from-pink-500 to-rose-600',
+            accent: 'purple-400',
+            gradient: 'from-purple-500 via-pink-600 to-fuchsia-500',
+            orb1: 'bg-purple-500',
+            orb2: 'bg-pink-500',
+            orb3: 'bg-fuchsia-500',
+            glow: 'shadow-purple-500/30',
+            text: 'from-white via-purple-200 to-pink-200',
+            border: 'border-purple-500/30',
+            hover: 'hover:shadow-purple-500/20 hover:border-purple-500/30',
+            excellent: 'from-purple-400 to-pink-500',
+        },
+        blue: {
+            name: 'Deep Ocean',
+            bg: 'from-slate-950 via-blue-950 to-slate-950',
+            primary: 'from-blue-500 to-indigo-600',
+            secondary: 'from-sky-500 to-blue-600',
+            accent: 'blue-400',
+            gradient: 'from-blue-500 via-indigo-600 to-sky-500',
+            orb1: 'bg-blue-500',
+            orb2: 'bg-indigo-500',
+            orb3: 'bg-sky-500',
+            glow: 'shadow-blue-500/30',
+            text: 'from-white via-blue-200 to-indigo-200',
+            border: 'border-blue-500/30',
+            hover: 'hover:shadow-blue-500/20 hover:border-blue-500/30',
+            excellent: 'from-blue-400 to-indigo-500',
+        },
+        green: {
+            name: 'Forest Mint',
+            bg: 'from-slate-950 via-emerald-950 to-slate-950',
+            primary: 'from-emerald-500 to-green-600',
+            secondary: 'from-lime-500 to-green-600',
+            accent: 'emerald-400',
+            gradient: 'from-emerald-500 via-green-600 to-lime-500',
+            orb1: 'bg-emerald-500',
+            orb2: 'bg-green-500',
+            orb3: 'bg-lime-500',
+            glow: 'shadow-emerald-500/30',
+            text: 'from-white via-emerald-200 to-green-200',
+            border: 'border-emerald-500/30',
+            hover: 'hover:shadow-emerald-500/20 hover:border-emerald-500/30',
+            excellent: 'from-emerald-400 to-green-500',
+        },
+        rose: {
+            name: 'Sunset Rose',
+            bg: 'from-slate-950 via-rose-950 to-slate-950',
+            primary: 'from-rose-500 to-amber-600',
+            secondary: 'from-amber-500 to-orange-600',
+            accent: 'rose-400',
+            gradient: 'from-rose-500 via-amber-600 to-orange-500',
+            orb1: 'bg-rose-500',
+            orb2: 'bg-amber-500',
+            orb3: 'bg-orange-500',
+            glow: 'shadow-rose-500/30',
+            text: 'from-white via-rose-200 to-amber-200',
+            border: 'border-rose-500/30',
+            hover: 'hover:shadow-rose-500/20 hover:border-rose-500/30',
+            excellent: 'from-rose-400 to-amber-500',
+        },
+    };
+
+    const currentTheme = themes[theme];
+
     // Monitor camera status changes for debugging
     useEffect(() => {
         console.log('🔄 Camera status changed to:', cameraStatus);
     }, [cameraStatus]);
+
+    // Fetch detailed guide when modal opens
+    useEffect(() => {
+        if (expandedRecommendation && !detailedGuide) {
+            const fetchGuide = async () => {
+                setLoadingDetailedGuide(true);
+                try {
+                    const guide = await getDetailedAIGuide(
+                        expandedRecommendation.feature,
+                        expandedRecommendation.recommendation,
+                        expandedRecommendation.score
+                    );
+                    setDetailedGuide(guide);
+                } catch (error) {
+                    console.error('Error fetching detailed guide:', error);
+                } finally {
+                    setLoadingDetailedGuide(false);
+                }
+            };
+            fetchGuide();
+        } else if (!expandedRecommendation) {
+            setDetailedGuide(null); // Reset when modal closes
+        }
+    }, [expandedRecommendation]);
 
     // Load model in background when component mounts, but don't block UI
     useEffect(() => {
@@ -902,6 +1016,158 @@ export default function FacialAnalysisApp() {
         }
     };
 
+    // Generate detailed AI-powered guide for a specific recommendation
+    const getDetailedAIGuide = async (featureName, recommendation, score) => {
+        console.log(`📚 Generating detailed guide for ${featureName}: ${recommendation}`);
+        
+        const prompt = `You are a professional facial aesthetics expert. Generate a comprehensive, detailed guide for this recommendation:
+
+Feature: ${featureName}
+Current Score: ${score}/100
+Recommendation: ${recommendation}
+
+Provide a detailed guide in JSON format with the following structure:
+{
+  "title": "Clear, engaging title",
+  "overview": "2-3 sentence overview explaining the technique and its benefits",
+  "steps": [
+    {
+      "stepNumber": 1,
+      "title": "Step title",
+      "description": "Detailed description",
+      "duration": "How long this step takes",
+      "frequency": "How often to do this",
+      "tips": ["Tip 1", "Tip 2"]
+    }
+  ],
+  "expectedResults": {
+    "week1": "What to expect in week 1",
+    "week4": "What to expect in week 4",
+    "week8": "What to expect in week 8"
+  },
+  "dos": ["Do this", "Do that"],
+  "donts": ["Don't do this", "Don't do that"],
+  "proTips": ["Expert tip 1", "Expert tip 2"],
+  "relatedProducts": ["Product recommendation 1", "Product recommendation 2"]
+}
+
+Provide specific, actionable, and realistic advice. Return only valid JSON, no markdown or extra text.`;
+
+        const providers = [
+            {
+                name: 'Groq',
+                url: 'https://api.groq.com/openai/v1/chat/completions',
+                key: import.meta.env.VITE_GROQ_API_KEY,
+                model: 'llama-3.1-8b-instant'
+            },
+            {
+                name: 'OpenAI',
+                url: 'https://api.openai.com/v1/chat/completions',
+                key: import.meta.env.VITE_OPENAI_API_KEY,
+                model: 'gpt-3.5-turbo'
+            }
+        ];
+
+        for (const provider of providers) {
+            if (!provider.key) continue;
+            
+            try {
+                console.log(`Trying ${provider.name} for detailed guide...`);
+                const response = await fetch(provider.url, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${provider.key}`,
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        model: provider.model,
+                        messages: [{ role: 'user', content: prompt }],
+                        temperature: 0.7,
+                        max_tokens: 2000,
+                    }),
+                });
+
+                if (!response.ok) {
+                    throw new Error(`${provider.name} API error: ${response.status}`);
+                }
+
+                const data = await response.json();
+                const content = data.choices[0].message.content.trim();
+                
+                // Try to parse JSON, removing markdown code blocks if present
+                const jsonMatch = content.match(/\{[\s\S]*\}/);
+                if (jsonMatch) {
+                    const guide = JSON.parse(jsonMatch[0]);
+                    console.log(`Successfully got detailed guide from ${provider.name}`);
+                    return guide;
+                }
+            } catch (error) {
+                console.error(`${provider.name} failed:`, error.message);
+                continue;
+            }
+        }
+
+        // Fallback guide if AI fails
+        return {
+            title: "Comprehensive Improvement Guide",
+            overview: "This guide provides evidence-based techniques to improve your facial aesthetics through consistent practice and proper care.",
+            steps: [
+                {
+                    stepNumber: 1,
+                    title: "Start Your Routine",
+                    description: "Begin with a clean, relaxed face. Take before photos to track progress.",
+                    duration: "5 minutes",
+                    frequency: "Daily",
+                    tips: ["Use good lighting for photos", "Relax facial muscles first"]
+                },
+                {
+                    stepNumber: 2,
+                    title: "Apply the Technique",
+                    description: recommendation,
+                    duration: "10-15 minutes",
+                    frequency: "Twice daily",
+                    tips: ["Be consistent", "Don't overdo it", "Listen to your body"]
+                },
+                {
+                    stepNumber: 3,
+                    title: "Track and Adjust",
+                    description: "Monitor your progress weekly and adjust intensity as needed.",
+                    duration: "5 minutes weekly",
+                    frequency: "Weekly",
+                    tips: ["Take weekly progress photos", "Note any improvements", "Stay patient"]
+                }
+            ],
+            expectedResults: {
+                week1: "Initial adaptation phase - you may feel slight muscle activation",
+                week4: "Noticeable improvements in muscle tone and definition",
+                week8: "Visible enhancement in facial structure and symmetry"
+            },
+            dos: [
+                "Be consistent with your routine",
+                "Track progress with photos",
+                "Stay hydrated and maintain good sleep",
+                "Combine with healthy lifestyle habits"
+            ],
+            donts: [
+                "Don't expect overnight results",
+                "Don't skip days frequently",
+                "Don't overdo exercises or products",
+                "Don't compare yourself to others"
+            ],
+            proTips: [
+                "Set daily reminders for consistency",
+                "Join online communities for motivation",
+                "Pair with proper nutrition and hydration",
+                "Results typically visible in 4-8 weeks"
+            ],
+            relatedProducts: [
+                "Jade roller for facial massage",
+                "Quality moisturizer for skin health",
+                "Vitamin C serum for brightness"
+            ]
+        };
+    };
+
     // Multi-provider AI Recommendations (Groq, OpenAI, Hugging Face)
     const getAIRecommendations = async (featureName, score, facialMeasurements) => {
         console.log(`🚀 Starting AI recommendation for ${featureName}`);
@@ -1143,60 +1409,127 @@ export default function FacialAnalysisApp() {
     };
 
     const ScoreCard = ({ label, score }) => (
-        <div className="bg-white rounded-2xl p-6 border border-gray-200 hover:shadow-2xl hover:shadow-rose-200/50 hover:border-rose-300 transition-all duration-300 cursor-pointer hover:scale-105">
-            <div className="text-center">
-                <h3 className="text-gray-500 text-xs font-semibold mb-3 uppercase tracking-wider">{label}</h3>
-                <div className="text-5xl font-bold text-gray-900 mb-4">{score}</div>
-                <div className="w-full bg-gray-100 rounded-full h-2.5 mb-3">
-                    <div
-                        className={`h-2.5 rounded-full transition-all duration-500 ${
-                            score >= 80 ? 'bg-gradient-to-r from-green-500 to-green-600' :
-                            score >= 60 ? 'bg-gradient-to-r from-yellow-400 to-yellow-500' :
-                            'bg-gradient-to-r from-rose-400 to-rose-500'
-                        }`}
-                        style={{ width: `${score}%` }}
-                    />
-                </div>
-                <div className={`text-sm font-semibold ${
-                    score >= 80 ? 'text-green-600' :
-                    score >= 60 ? 'text-yellow-600' :
-                    'text-rose-600'
-                }`}>
-                    {score >= 80 ? 'Excellent' : score >= 60 ? 'Good' : 'Improve'}
+        <div className="relative group">
+            <div className="relative overflow-hidden rounded-2xl bg-white/5 backdrop-blur-xl border border-white/10 p-6 hover:border-teal-500/30 hover:shadow-2xl hover:shadow-teal-500/20 transition-all duration-500 cursor-pointer hover:scale-105">
+                <div className="absolute inset-0 bg-gradient-to-br from-teal-500/0 to-cyan-500/0 group-hover:from-teal-500/10 group-hover:to-cyan-500/10 transition-all duration-500"></div>
+                
+                <div className="relative text-center">
+                    <h3 className="text-white/60 text-xs font-bold mb-4 uppercase tracking-widest">{label}</h3>
+                    <div className="text-5xl font-bold text-white mb-4">{score}</div>
+                    <div className="w-full bg-white/10 rounded-full h-2 mb-3 overflow-hidden">
+                        <div
+                            className={`h-2 rounded-full transition-all duration-700 ${
+                                score >= 80 ? 'bg-gradient-to-r from-green-400 to-emerald-500' :
+                                score >= 60 ? 'bg-gradient-to-r from-yellow-400 to-orange-500' :
+                                'bg-gradient-to-r from-pink-400 to-rose-500'
+                            }`}
+                            style={{ width: `${score}%` }}
+                        />
+                    </div>
+                    <div className={`text-xs font-bold uppercase tracking-wider ${
+                        score >= 80 ? 'text-green-400' :
+                        score >= 60 ? 'text-yellow-400' :
+                        'text-pink-400'
+                    }`}>
+                        {score >= 80 ? 'Excellent' : score >= 60 ? 'Good' : 'Improve'}
+                    </div>
                 </div>
             </div>
         </div>
     );
 
     return (
-        <div className="min-h-screen bg-gray-50 p-4 md:p-8">
-            {console.log('🖥️ App render - step:', step, 'scores:', !!scores, 'loadingRecommendations:', loadingRecommendations)}
-            <div className="max-w-6xl mx-auto">
-                <div className="bg-white rounded-3xl shadow-sm p-8 md:p-12 border border-gray-100">
-                    <div className="text-center mb-12">
-                        <h1 className="text-4xl md:text-5xl font-bold text-gray-900 mb-2 tracking-tight">
-                            FaceMaxx
-                        </h1>
-                        
-                        {/* Model Status Indicator */}
-                        <div className="mt-8">
-                            {modelLoading ? (
-                                <div className="inline-flex items-center text-gray-700 bg-gray-100 rounded-full px-6 py-3 border border-gray-200">
-                                    <Loader className="w-5 h-5 mr-2 animate-spin text-gray-600" />
-                                    <span className="font-medium text-sm">Loading AI Model...</span>
-                                </div>
-                            ) : model ? (
-                                <div className="inline-flex items-center text-green-700 bg-green-50 rounded-full px-6 py-3 border border-green-100">
-                                    <span className="text-green-600 mr-2">✓</span>
-                                    <span className="font-medium text-sm">AI Ready</span>
-                                </div>
-                            ) : !modelError ? (
-                                <div className="inline-flex items-center text-gray-600 bg-gray-50 rounded-full px-6 py-3 border border-gray-100">
-                                    <span className="text-gray-500 mr-2">⏳</span>
-                                    <span className="font-medium text-sm">Loading...</span>
-                                </div>
-                            ) : null}
+        <div className={`min-h-screen bg-gradient-to-br ${currentTheme.bg} relative overflow-hidden transition-colors duration-1000`}>
+            {console.log('App render - step:', step, 'scores:', !!scores, 'loadingRecommendations:', loadingRecommendations)}
+            
+            {/* Theme Selector Button */}
+            <div className="fixed top-6 right-6 z-50">
+                <button
+                    onClick={() => setShowThemeSelector(!showThemeSelector)}
+                    className="w-14 h-14 rounded-full bg-white/10 backdrop-blur-xl border border-white/20 hover:bg-white/20 transition-all duration-300 flex items-center justify-center shadow-2xl group"
+                    title="Change Theme"
+                >
+                    <div className={`w-8 h-8 rounded-full bg-gradient-to-r ${currentTheme.primary} group-hover:scale-110 transition-transform duration-300`}></div>
+                </button>
+                
+                {/* Theme Selector Panel */}
+                {showThemeSelector && (
+                    <div className="absolute top-16 right-0 bg-white/10 backdrop-blur-xl border border-white/20 rounded-3xl p-4 shadow-2xl animate-fadeInUp min-w-[280px]">
+                        <h3 className="text-white font-bold mb-4 px-2">Choose Theme</h3>
+                        <div className="space-y-2">
+                            {Object.entries(themes).map(([key, themeConfig]) => (
+                                <button
+                                    key={key}
+                                    onClick={() => {
+                                        setTheme(key);
+                                        setShowThemeSelector(false);
+                                    }}
+                                    className={`w-full flex items-center gap-3 px-4 py-3 rounded-2xl transition-all duration-300 ${
+                                        theme === key 
+                                            ? 'bg-white/20 border-2 border-white/40' 
+                                            : 'bg-white/5 border border-white/10 hover:bg-white/10'
+                                    }`}
+                                >
+                                    <div className={`w-10 h-10 rounded-xl bg-gradient-to-r ${themeConfig.primary} flex-shrink-0`}></div>
+                                    <div className="text-left flex-1">
+                                        <p className="text-white font-semibold text-sm">{themeConfig.name}</p>
+                                        {theme === key && <p className="text-white/60 text-xs">Active</p>}
+                                    </div>
+                                </button>
+                            ))}
                         </div>
+                    </div>
+                )}
+            </div>
+            
+            {/* Dynamic animated background pattern */}
+            <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                {/* Animated gradient orbs */}
+                <div className={`absolute top-0 -left-4 w-96 h-96 ${currentTheme.orb1} rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-move-bg transition-colors duration-1000`}></div>
+                <div className={`absolute top-0 -right-4 w-96 h-96 ${currentTheme.orb2} rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-move-bg transition-colors duration-1000`} style={{animationDelay: '7s', animationDuration: '25s'}}></div>
+                <div className={`absolute -bottom-8 left-20 w-96 h-96 ${currentTheme.orb3} rounded-full mix-blend-multiply filter blur-3xl opacity-20 animate-move-bg transition-colors duration-1000`} style={{animationDelay: '14s', animationDuration: '30s'}}></div>
+                
+                {/* Rotating gradient rings */}
+                <div className={`absolute top-1/4 left-1/4 w-[600px] h-[600px] border border-${currentTheme.accent}/10 rounded-full animate-rotate-slow transition-colors duration-1000`}></div>
+                <div className={`absolute top-1/3 right-1/4 w-[500px] h-[500px] border border-${currentTheme.accent}/10 rounded-full animate-rotate-slow transition-colors duration-1000`} style={{animationDuration: '40s', animationDirection: 'reverse'}}></div>
+                
+                {/* Grid pattern overlay - using inline style for dynamic color */}
+                <div className="absolute inset-0 opacity-50" style={{
+                    backgroundImage: `linear-gradient(currentColor 1px, transparent 1px), linear-gradient(90deg, currentColor 1px, transparent 1px)`,
+                    backgroundSize: '50px 50px',
+                    color: `rgba(${theme === 'teal' ? '6,182,212' : theme === 'purple' ? '168,85,247' : theme === 'blue' ? '59,130,246' : theme === 'green' ? '16,185,129' : '244,63,94'}, 0.03)`
+                }}></div>
+            </div>
+
+            <div className="relative z-10 p-4 md:p-8">
+                <div className="max-w-7xl mx-auto">
+                    {/* Premium Header */}
+                    <div className="text-center mb-16 animate-fadeInUp">
+                        <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-md rounded-full px-4 py-2 mb-6 border border-white/20">
+                            <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+                            {modelLoading ? (
+                                <>
+                                    <Loader className="w-4 h-4 text-white/80 animate-spin" />
+                                    <span className="text-white/80 text-sm font-medium">Initializing AI...</span>
+                                </>
+                            ) : model ? (
+                                <>
+                                    <span className="text-green-400 text-sm">●</span>
+                                    <span className="text-white/90 text-sm font-medium">AI Powered</span>
+                                </>
+                            ) : (
+                                <span className="text-white/70 text-sm font-medium">Loading...</span>
+                            )}
+                        </div>
+                        
+                        <h1 className="text-6xl md:text-7xl lg:text-8xl font-bold mb-4 tracking-tight">
+                            <span className={`bg-gradient-to-r ${currentTheme.text} bg-clip-text text-transparent transition-all duration-1000`}>
+                                FaceMaxx
+                            </span>
+                        </h1>
+                        <p className="text-xl md:text-2xl text-white/70 font-light max-w-2xl mx-auto leading-relaxed">
+                            Premium AI-powered facial analysis with personalized recommendations
+                        </p>
                         
                         {modelError && (
                             <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-lg">
@@ -1233,139 +1566,206 @@ export default function FacialAnalysisApp() {
                     </div>
 
                     {loading && (
-                        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                            <div className="bg-white p-8 rounded-xl text-center max-w-md mx-4">
-                                <Loader className="w-16 h-16 mx-auto mb-4 text-indigo-600 animate-spin" />
-                                <p className="text-xl font-semibold">
-                                    {modelLoading ? 'Loading AI model...' : 'Analyzing facial features...'}
-                                </p>
-                                <p className="text-gray-600 mt-2">
-                                    {modelLoading 
-                                        ? 'Preparing TensorFlow.js and face detection model' 
-                                        : model 
-                                            ? '🤖 Using AI Model for high-precision analysis'
-                                            : '📊 Using Basic Analysis mode (AI model unavailable)'
-                                    }
-                                </p>
-                                {modelLoading && (
-                                    <div className="mt-4 text-sm text-gray-500">
-                                        This may take 10-30 seconds on first load
+                        <div className="fixed inset-0 bg-black/70 backdrop-blur-2xl flex items-center justify-center z-50 animate-fadeInUp">
+                            <div className="relative">
+                                {/* Animated gradient blob background */}
+                                <div className="absolute inset-0 -z-10">
+                                    <div className="absolute top-0 left-0 w-72 h-72 bg-teal-500/30 rounded-full blur-3xl animate-pulse"></div>
+                                    <div className="absolute bottom-0 right-0 w-72 h-72 bg-orange-500/30 rounded-full blur-3xl animate-pulse" style={{animationDelay: '0.5s'}}></div>
+                                </div>
+                                
+                                <div className="relative bg-white/10 backdrop-blur-xl border border-white/20 p-12 rounded-3xl text-center max-w-md mx-4 shadow-2xl">
+                                    {/* Premium loader */}
+                                    <div className="relative w-24 h-24 mx-auto mb-8">
+                                        <div className="absolute inset-0 rounded-full bg-gradient-to-r from-teal-500 to-cyan-600 animate-spin" style={{clipPath: 'polygon(50% 50%, 100% 0, 100% 100%)'}}></div>
+                                        <div className="absolute inset-2 rounded-full bg-gradient-to-br from-slate-950 to-teal-950 flex items-center justify-center">
+                                            <Loader className="w-10 h-10 text-white animate-spin" />
+                                        </div>
                                     </div>
-                                )}
-                                {!model && !modelLoading && (
-                                    <div className="mt-4 text-sm text-orange-600 bg-orange-50 rounded p-2">
-                                        Using estimated analysis - results may be less accurate
+                                    
+                                    <h3 className="text-3xl font-bold text-white mb-4 bg-gradient-to-r from-white via-teal-200 to-cyan-200 bg-clip-text text-transparent">
+                                        {modelLoading ? 'Loading AI Model' : 'Analyzing Your Features'}
+                                    </h3>
+                                    
+                                    <p className="text-white/70 text-base leading-relaxed mb-4">
+                                        {modelLoading 
+                                            ? 'Preparing TensorFlow.js and face detection model' 
+                                            : model 
+                                                ? 'Using AI Model for high-precision analysis'
+                                                : 'Using Basic Analysis mode (AI model unavailable)'
+                                        }
+                                    </p>
+                                    
+                                    {modelLoading && (
+                                        <div className="mt-6 p-4 bg-white/5 rounded-2xl border border-white/10">
+                                            <p className="text-sm text-white/60">This may take 10-30 seconds on first load</p>
+                                        </div>
+                                    )}
+                                    
+                                    {!model && !modelLoading && (
+                                        <div className="mt-6 p-4 bg-orange-500/10 rounded-2xl border border-orange-500/30">
+                                            <p className="text-sm text-orange-300">Using estimated analysis - results may be less accurate</p>
+                                        </div>
+                                    )}
+                                    
+                                    {/* Progress dots */}
+                                    <div className="mt-8 flex justify-center gap-2">
+                                        <div className="w-2 h-2 bg-teal-400 rounded-full animate-bounce"></div>
+                                        <div className="w-2 h-2 bg-cyan-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                                        <div className="w-2 h-2 bg-orange-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
                                     </div>
-                                )}
+                                </div>
                             </div>
                         </div>
                     )}
 
                     {step === 1 && (
-                        <div className="space-y-6">
-                            <h2 className="text-2xl font-semibold text-center mb-6">Upload or Capture Your Photo</h2>
-
+                        <div className="space-y-8 animate-fadeInUp">
                             {!stream ? (
-                                <div className="space-y-4">
-                                    {/* Primary option - File Upload */}
+                                <div className="grid md:grid-cols-2 gap-6">
+                                    {/* Premium File Upload Card */}
                                     <div
                                         onClick={() => fileInputRef.current.click()}
                                         onDragOver={handleDragOver}
                                         onDragLeave={handleDragLeave}
                                         onDrop={handleDrop}
-                                        className={`w-full flex flex-col items-center justify-center p-12 border-2 border-dashed rounded-2xl transition-all relative cursor-pointer ${
-                                            dragOver 
-                                                ? 'border-rose-400 bg-rose-50 scale-102' 
-                                                : 'border-gray-300 hover:border-gray-400 hover:bg-gray-50'
+                                        className={`relative group cursor-pointer transition-all duration-500 ${
+                                            dragOver ? 'scale-105' : 'hover:scale-102'
                                         }`}
                                     >
-                                        <div className="absolute top-4 right-4 bg-rose-500 text-white px-3 py-1.5 rounded-full text-xs font-semibold shadow-sm">
-                                            Recommended
+                                        <div className={`relative overflow-hidden rounded-3xl p-10 h-full backdrop-blur-xl border transition-all duration-500 ${
+                                            dragOver 
+                                                ? 'bg-gradient-to-br from-pink-500/20 to-purple-500/20 border-pink-400/50 shadow-2xl shadow-pink-500/30' 
+                                                : 'bg-white/10 border-white/20 shadow-xl hover:shadow-2xl hover:border-white/30'
+                                        }`}>
+                                            {/* Animated gradient overlay */}
+                                            <div className="absolute inset-0 bg-gradient-to-br from-pink-500/10 to-purple-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                                            
+                                            {/* Recommended badge */}
+                                            <div className={`absolute top-6 right-6 bg-gradient-to-r ${currentTheme.primary} text-white px-4 py-2 rounded-full text-xs font-semibold shadow-lg ${currentTheme.glow} animate-glow transition-all duration-1000`}>
+                                                ✨ Recommended
+                                            </div>
+                                            
+                                            <div className="relative z-10 flex flex-col items-center text-center h-full justify-center">
+                                                <div className={`w-24 h-24 rounded-2xl bg-gradient-to-br ${currentTheme.primary} flex items-center justify-center mb-6 shadow-lg transition-all duration-700 ${
+                                                    dragOver ? 'scale-110 rotate-12' : 'group-hover:scale-110'
+                                                }`}>
+                                                    <Upload className="w-12 h-12 text-white" />
+                                                </div>
+                                                
+                                                <h3 className="text-2xl font-bold text-white mb-3">
+                                                    Upload Photo
+                                                </h3>
+                                                <p className="text-white/70 text-base leading-relaxed mb-4 max-w-xs">
+                                                    {dragOver 
+                                                        ? '✨ Drop your photo here' 
+                                                        : 'Click or drag & drop your best photo'
+                                                    }
+                                                </p>
+                                                <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2 text-sm text-white/80 border border-white/20">
+                                                    <span>JPG, PNG</span>
+                                                    <span className="w-1 h-1 bg-white/40 rounded-full"></span>
+                                                    <span>Max 10MB</span>
+                                                </div>
+                                            </div>
                                         </div>
-                                        <Upload className={`w-20 h-20 mb-4 ${dragOver ? 'text-rose-500 scale-110' : 'text-gray-400'} transition-all`} />
-                                        <span className="text-2xl font-semibold text-gray-900 mb-2">
-                                            Upload your photo
-                                        </span>
-                                        <span className="text-base text-gray-600 text-center max-w-md leading-relaxed">
-                                            {dragOver 
-                                                ? 'Drop your photo here' 
-                                                : 'Drag and drop, or click to select a clear face photo'
-                                            }
-                                        </span>
-                                        <span className="text-sm text-gray-500 mt-4 bg-gray-100 px-4 py-2 rounded-full">
-                                            JPG or PNG • Max 10MB
-                                        </span>
                                     </div>
 
-                                    {/* Secondary option - Camera */}
-                                    <div className="text-center">
-                                        <p className="text-gray-500 text-sm mb-3">Or use your camera (requires permission)</p>
-                                        <button
-                                            onClick={async () => {
-                                                console.log('Camera button clicked');
-                                                // Quick test first
-                                                try {
-                                                    const testStream = await navigator.mediaDevices.getUserMedia({ video: true });
-                                                    console.log('✅ Quick camera test passed');
-                                                    testStream.getTracks().forEach(track => track.stop());
-                                                } catch (e) {
-                                                    console.error('❌ Quick camera test failed:', e);
-                                                    alert('Camera test failed: ' + e.message);
-                                                    return;
-                                                }
+                                    {/* Premium Camera Card */}
+                                    <div
+                                        onClick={async () => {
+                                            console.log('Camera button clicked');
+                                            try {
+                                                const testStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                                                console.log('Quick camera test passed');
+                                                testStream.getTracks().forEach(track => track.stop());
+                                            } catch (e) {
+                                                console.error('Quick camera test failed:', e);
+                                                alert('Camera test failed: ' + e.message);
+                                                return;
+                                            }
+                                            setCameraStatus('idle');
+                                            startCamera();
+                                        }}
+                                        className="relative group cursor-pointer transition-all duration-500 hover:scale-102"
+                                    >
+                                        <div className="relative overflow-hidden rounded-3xl p-10 h-full bg-white/10 backdrop-blur-xl border border-white/20 shadow-xl hover:shadow-2xl hover:border-white/30 transition-all duration-500">
+                                            {/* Animated gradient overlay */}
+                                            <div className="absolute inset-0 bg-gradient-to-br from-orange-500/10 to-coral-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                                            
+                                            <div className="relative z-10 flex flex-col items-center text-center h-full justify-center">
+                                                <div className="w-24 h-24 rounded-2xl bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center mb-6 shadow-lg group-hover:scale-110 transition-transform duration-500">
+                                                    <Camera className="w-12 h-12 text-white" />
+                                                </div>
                                                 
-                                                // Reset camera status and start camera
-                                                // Camera UI shows when stream exists (still in step 1)
-                                                setCameraStatus('idle');
-                                                startCamera();
-                                            }}
-                                            className="flex flex-col items-center justify-center p-6 border-2 border-dashed border-purple-300 rounded-xl hover:border-purple-500 hover:bg-purple-50 transition-all mx-auto w-full max-w-sm"
-                                        >
-                                            <Camera className="w-12 h-12 text-purple-500 mb-3" />
-                                            <span className="text-lg font-medium text-gray-700">Take Photo</span>
-                                            <span className="text-xs text-gray-500 mt-1">
-                                                Quick and easy face capture
-                                            </span>
-                                        </button>
+                                                <h3 className="text-2xl font-bold text-white mb-3">
+                                                    Use Camera
+                                                </h3>
+                                                <p className="text-white/70 text-base leading-relaxed mb-4 max-w-xs">
+                                                    Take a photo right now with your device camera
+                                                </p>
+                                                <div className="inline-flex items-center gap-2 bg-white/10 backdrop-blur-sm rounded-full px-4 py-2 text-sm text-white/80 border border-white/20">
+                                                    <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
+                                                    <span>Live capture</span>
+                                                </div>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             ) : (
-                                <div className="space-y-4">
-                                    <div className="bg-gray-100 p-4 rounded-xl">
-                                        <h3 className="text-lg font-semibold mb-3 text-center">📷 Camera Preview</h3>
-                                        <div className="relative bg-black rounded-lg overflow-hidden" style={{minHeight: '300px'}}>
+                                <div className="space-y-6 animate-fadeInUp">
+                                    <div className="relative overflow-hidden rounded-3xl bg-white/5 backdrop-blur-xl border border-white/20 shadow-2xl p-8">
+                                        <div className="relative bg-gradient-to-br from-slate-900 to-black rounded-2xl overflow-hidden shadow-inner" style={{minHeight: '400px'}}>
                                             <video 
                                                 ref={videoRef} 
                                                 autoPlay 
                                                 playsInline
                                                 muted
-                                                className="w-full h-full object-cover rounded-lg"
-                                                style={{minHeight: '300px'}}
+                                                className="w-full h-full object-cover rounded-2xl"
+                                                style={{minHeight: '400px'}}
                                             />
+                                            
+                                            {/* Camera frame overlay */}
+                                            <div className="absolute inset-0 pointer-events-none">
+                                                <div className="absolute inset-8 border-2 border-white/30 rounded-3xl"></div>
+                                                <div className="absolute top-8 left-8 w-8 h-8 border-t-4 border-l-4 border-teal-400 rounded-tl-xl"></div>
+                                                <div className="absolute top-8 right-8 w-8 h-8 border-t-4 border-r-4 border-teal-400 rounded-tr-xl"></div>
+                                                <div className="absolute bottom-8 left-8 w-8 h-8 border-b-4 border-l-4 border-teal-400 rounded-bl-xl"></div>
+                                                <div className="absolute bottom-8 right-8 w-8 h-8 border-b-4 border-r-4 border-teal-400 rounded-br-xl"></div>
+                                            </div>
+                                            
                                             {cameraStatus === 'starting' && (
-                                                <div className="absolute inset-0 flex items-center justify-center bg-gray-800 text-white">
+                                                <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-950/95 to-teal-950/95 backdrop-blur-xl">
                                                     <div className="text-center">
-                                                        <Loader className="w-12 h-12 mx-auto mb-3 animate-spin text-white" />
-                                                        <p className="text-lg font-medium">Starting camera...</p>
-                                                        <p className="text-sm text-gray-300 mt-1">Please wait while we access your camera</p>
-                                                        <p className="text-xs text-gray-400 mt-2">Status: {cameraStatus}</p>
+                                                        <div className="w-20 h-20 rounded-full bg-gradient-to-r from-teal-500 to-cyan-600 flex items-center justify-center mx-auto mb-6 animate-pulse shadow-lg shadow-teal-500/50">
+                                                            <Loader className="w-10 h-10 text-white animate-spin" />
+                                                        </div>
+                                                        <p className="text-2xl font-bold text-white mb-3">Starting Camera</p>
+                                                        <p className="text-white/70">Please grant camera access</p>
+                                                        <div className="mt-4 flex justify-center gap-2">
+                                                            <div className="w-2 h-2 bg-teal-400 rounded-full animate-bounce"></div>
+                                                            <div className="w-2 h-2 bg-cyan-400 rounded-full animate-bounce" style={{animationDelay: '0.1s'}}></div>
+                                                            <div className="w-2 h-2 bg-orange-400 rounded-full animate-bounce" style={{animationDelay: '0.2s'}}></div>
+                                                        </div>
                                                     </div>
                                                 </div>
                                             )}
+                                            
                                             {cameraStatus === 'error' && (
-                                                <div className="absolute inset-0 flex items-center justify-center bg-gray-800 text-white">
-                                                    <div className="text-center p-4">
-                                                        <AlertCircle className="w-12 h-12 mx-auto mb-3 text-red-400" />
-                                                        <p className="text-lg font-medium text-red-400">Camera Error</p>
-                                                        <p className="text-sm text-gray-300 mt-1">Camera initialization failed</p>
-                                                        <p className="text-xs text-gray-400 mt-2">Check browser console for details</p>
-                                                        <div className="flex gap-2 mt-4 justify-center">
+                                                <div className="absolute inset-0 flex items-center justify-center bg-gradient-to-br from-slate-900/95 to-red-900/95 backdrop-blur-xl">
+                                                    <div className="text-center p-8 max-w-md">
+                                                        <div className="w-20 h-20 rounded-full bg-red-500/20 flex items-center justify-center mx-auto mb-6 border-2 border-red-500/50">
+                                                            <AlertCircle className="w-10 h-10 text-red-400" />
+                                                        </div>
+                                                        <p className="text-2xl font-bold text-white mb-3">Camera Access Error</p>
+                                                        <p className="text-white/70 mb-6">Unable to access your camera. Please check permissions.</p>
+                                                        <div className="flex gap-3 justify-center">
                                                             <button 
                                                                 onClick={() => {
                                                                     setCameraStatus('idle');
                                                                     startCamera();
                                                                 }}
-                                                                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm"
+                                                                className="px-6 py-3 bg-gradient-to-r from-teal-500 to-cyan-600 text-white rounded-xl hover:shadow-xl hover:shadow-teal-500/30 transition-all duration-300 font-semibold"
                                                             >
                                                                 Try Again
                                                             </button>
@@ -1373,7 +1773,7 @@ export default function FacialAnalysisApp() {
                                                                 onClick={() => {
                                                                     stopCamera();
                                                                 }}
-                                                                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 text-sm"
+                                                                className="px-6 py-3 bg-white/10 backdrop-blur-sm text-white rounded-xl hover:bg-white/20 transition-all duration-300 border border-white/20"
                                                             >
                                                                 Cancel
                                                             </button>
@@ -1384,26 +1784,33 @@ export default function FacialAnalysisApp() {
                                         </div>
                                         
                                         {cameraStatus === 'ready' && videoRef.current?.videoWidth > 0 && (
-                                            <div className="mt-2 text-center text-sm text-green-600">
-                                                ✅ Camera active • Resolution: {videoRef.current.videoWidth}x{videoRef.current.videoHeight}
+                                            <div className="mt-6 flex items-center justify-center gap-3">
+                                                <div className="w-3 h-3 bg-green-400 rounded-full animate-pulse shadow-lg shadow-green-500/50"></div>
+                                                <p className="text-white/80 text-sm font-medium">
+                                                    Camera Active • {videoRef.current.videoWidth}x{videoRef.current.videoHeight}
+                                                </p>
                                             </div>
                                         )}
                                     </div>
                                     
-                                    <div className="flex gap-3">
+                                    <div className="flex gap-4">
                                         <button
                                             onClick={capturePhoto}
                                             disabled={cameraStatus !== 'ready'}
-                                            className="flex-1 bg-indigo-600 text-white py-4 rounded-lg font-semibold hover:bg-indigo-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                                            className="flex-1 relative overflow-hidden group disabled:opacity-50 disabled:cursor-not-allowed"
                                         >
-                                            📸 Capture & Analyze Photo
+                                            <div className="absolute inset-0 bg-gradient-to-r from-teal-500 to-cyan-600 rounded-2xl group-hover:scale-105 transition-transform duration-300"></div>
+                                            <div className="relative z-10 flex items-center justify-center gap-3 py-5 text-white font-bold text-lg">
+                                                <Camera className="w-6 h-6" />
+                                                <span>Capture & Analyze</span>
+                                            </div>
                                         </button>
                                         <button
                                             onClick={() => {
                                                 console.log('Stopping camera...');
                                                 stopCamera();
                                             }}
-                                            className="px-6 bg-gray-500 text-white rounded-lg hover:bg-gray-600 transition-colors"
+                                            className="px-8 bg-white/10 backdrop-blur-sm text-white rounded-2xl hover:bg-white/20 transition-all duration-300 border border-white/20 font-semibold"
                                         >
                                             Cancel
                                         </button>
@@ -1419,53 +1826,76 @@ export default function FacialAnalysisApp() {
                                 className="hidden"
                             />
 
-                            <div className="space-y-4">
-                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                                    <h3 className="font-semibold text-blue-900 mb-2">
-                                        {modelLoading ? '⏳ While AI model loads - Photo Tips:' : '📸 Photo Tips:'}
-                                    </h3>
-                                    <ul className="text-sm text-blue-800 space-y-1">
-                                        <li>• Face camera directly with neutral expression</li>
-                                        <li>• Good lighting, avoid shadows</li>
-                                        <li>• Remove glasses if possible</li>
-                                        <li>• Clear, high-quality image works best</li>
-                                        {modelLoading && (
-                                            <li className="font-semibold text-blue-900 mt-3">
-                                                💡 You can upload/take photos now! Analysis will begin when the AI model is ready.
+                            <div className="mt-8">
+                                <div className="relative overflow-hidden rounded-3xl bg-white/5 backdrop-blur-xl border border-white/20 p-8">
+                                    <div className="absolute inset-0 bg-gradient-to-br from-blue-500/10 to-cyan-500/10"></div>
+                                    <div className="relative">
+                                        <h3 className="text-xl font-bold text-white mb-6 flex items-center gap-3">
+                                            <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center">
+                                                <Camera className="w-5 h-5 text-white" />
+                                            </div>
+                                            {modelLoading ? 'While AI Loads - Photo Tips' : 'Photo Tips'}
+                                        </h3>
+                                        <ul className="text-base text-white/80 space-y-3">
+                                            <li className="flex items-start gap-3">
+                                                <span className="w-1.5 h-1.5 bg-blue-400 rounded-full mt-2 flex-shrink-0"></span>
+                                                <span>Face camera directly with neutral expression</span>
                                             </li>
-                                        )}
-                                    </ul>
+                                            <li className="flex items-start gap-3">
+                                                <span className="w-1.5 h-1.5 bg-blue-400 rounded-full mt-2 flex-shrink-0"></span>
+                                                <span>Good lighting, avoid shadows</span>
+                                            </li>
+                                            <li className="flex items-start gap-3">
+                                                <span className="w-1.5 h-1.5 bg-blue-400 rounded-full mt-2 flex-shrink-0"></span>
+                                                <span>Remove glasses if possible</span>
+                                            </li>
+                                            <li className="flex items-start gap-3">
+                                                <span className="w-1.5 h-1.5 bg-blue-400 rounded-full mt-2 flex-shrink-0"></span>
+                                                <span>Clear, high-quality image works best</span>
+                                            </li>
+                                            {modelLoading && (
+                                                <li className="flex items-start gap-3 mt-4 p-4 bg-blue-500/10 rounded-2xl border border-blue-500/30">
+                                                    <Sparkles className="w-5 h-5 text-blue-400 flex-shrink-0 mt-0.5" />
+                                                    <span className="font-semibold text-blue-300">
+                                                        You can upload/take photos now! Analysis will begin when the AI model is ready.
+                                                    </span>
+                                                </li>
+                                            )}
+                                        </ul>
+                                    </div>
                                 </div>
-
-
                             </div>
                         </div>
                     )}
 
                     {step === 2 && scores && (
-                        <div className="space-y-6">
-                            <div className="flex justify-between items-center mb-6">
+                        <div className="space-y-8 animate-fadeInUp">
+                            <div className="flex justify-between items-center mb-8">
                                 <button
                                     onClick={() => { setStep(1); setImage(null); setScores(null); }}
-                                    className="flex items-center text-gray-600 hover:text-gray-900"
+                                    className="flex items-center gap-2 px-6 py-3 bg-white/10 backdrop-blur-sm text-white rounded-xl hover:bg-white/20 transition-all duration-300 border border-white/20 font-semibold group"
                                 >
-                                    <ArrowLeft className="w-5 h-5 mr-2" />
+                                    <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
                                     Back
                                 </button>
-                                <div className="text-center">
+                                <div className="text-center flex-1">
                                     {scores.isBasicMode ? (
-                                        <div className="mt-2 p-3 bg-orange-50 border border-orange-200 rounded-lg">
-                                            <p className="text-sm text-orange-700 font-medium">
-                                                ⚠️ Using Basic Estimation Mode
-                                            </p>
-                                            <p className="text-xs text-orange-600 mt-1">
-                                                TensorFlow.js AI model not loaded - scores are estimated using image analysis
-                                            </p>
+                                        <div className="inline-flex items-center gap-3 px-6 py-3 bg-orange-500/10 backdrop-blur-sm border border-orange-500/30 rounded-2xl">
+                                            <div className="w-2 h-2 bg-orange-400 rounded-full animate-pulse"></div>
+                                            <div className="text-left">
+                                                <p className="text-sm text-orange-300 font-semibold">
+                                                    Basic Estimation Mode
+                                                </p>
+                                                <p className="text-xs text-orange-400/80">
+                                                    AI model not loaded - using image analysis
+                                                </p>
+                                            </div>
                                         </div>
                                     ) : (
-                                        <div className="mt-2 p-3 bg-green-50 border border-green-200 rounded-lg">
-                                            <p className="text-sm text-green-700 font-medium">
-                                                🤖 Using AI Model Analysis
+                                        <div className="inline-flex items-center gap-3 px-6 py-3 bg-green-500/10 backdrop-blur-sm border border-green-500/30 rounded-2xl">
+                                            <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+                                            <p className="text-sm text-green-300 font-semibold">
+                                                AI Model Analysis Active
                                             </p>
                                         </div>
                                     )}
@@ -1473,60 +1903,71 @@ export default function FacialAnalysisApp() {
                                 <div className="w-20"></div>
                             </div>
 
-                            <div className="grid md:grid-cols-2 gap-6">
-                                <div>
+                            <div className="grid md:grid-cols-2 gap-8">
+                                <div className="space-y-6">
                                     {image && (
-                                        <img ref={imageRef} src={image} alt="Analyzed" className="w-full rounded-xl shadow-lg mb-4" />
+                                        <div className="relative overflow-hidden rounded-3xl group">
+                                            <img ref={imageRef} src={image} alt="Analyzed" className="w-full rounded-3xl shadow-2xl border border-white/20" />
+                                            <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                                        </div>
                                     )}
 
-                                    <div className="bg-gray-50 p-6 rounded-2xl border border-gray-200 hover:shadow-2xl hover:shadow-rose-200/50 hover:border-rose-300 transition-all duration-300 hover:scale-[1.02] cursor-pointer">
-                                        <h3 className="font-semibold text-gray-900 mb-4 text-lg">Your Analysis</h3>
-                                        <div className="space-y-3">
+                                    <div className="relative overflow-hidden rounded-3xl bg-white/10 backdrop-blur-xl border border-white/20 shadow-2xl p-8 hover:shadow-teal-500/20 hover:border-teal-500/30 transition-all duration-500 group cursor-pointer">
+                                        <div className="absolute inset-0 bg-gradient-to-br from-teal-500/10 to-cyan-500/10 opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                                        
+                                        <h3 className="relative text-2xl font-bold text-white mb-6 flex items-center gap-3">
+                                            <div className="w-1 h-8 bg-gradient-to-b from-teal-500 to-cyan-600 rounded-full"></div>
+                                            Your Analysis
+                                        </h3>
+                                        
+                                        <div className="relative space-y-3">
                                             {scores.isBasicMode ? (
                                                 <>
-                                                    <p className="text-amber-600 italic mb-3 text-sm bg-amber-50 p-3 rounded-lg">
-                                                        {scores.measurements.note}
-                                                    </p>
-                                                    <div className="space-y-2">
-                                                        <div className="flex justify-between bg-white px-4 py-3 rounded-xl shadow-sm border border-gray-100">
-                                                            <span className="text-gray-600 font-medium">Brightness</span>
-                                                            <span className="text-gray-900 font-semibold">{scores.measurements.brightness}/255</span>
+                                                    <div className="p-4 bg-amber-500/10 backdrop-blur-sm border border-amber-500/30 rounded-2xl mb-4">
+                                                        <p className="text-sm text-amber-300 italic">
+                                                            {scores.measurements.note}
+                                                        </p>
+                                                    </div>
+                                                    <div className="space-y-3">
+                                                        <div className="flex justify-between items-center bg-white/5 backdrop-blur-sm px-5 py-4 rounded-2xl border border-white/10 hover:border-white/20 transition-all">
+                                                            <span className="text-white/70 font-medium">Brightness</span>
+                                                            <span className="text-white font-bold text-lg">{scores.measurements.brightness}/255</span>
                                                         </div>
-                                                        <div className="flex justify-between bg-white px-4 py-3 rounded-xl shadow-sm border border-gray-100">
-                                                            <span className="text-gray-600 font-medium">Contrast</span>
-                                                            <span className="text-gray-900 font-semibold">{scores.measurements.contrast}</span>
+                                                        <div className="flex justify-between items-center bg-white/5 backdrop-blur-sm px-5 py-4 rounded-2xl border border-white/10 hover:border-white/20 transition-all">
+                                                            <span className="text-white/70 font-medium">Contrast</span>
+                                                            <span className="text-white font-bold text-lg">{scores.measurements.contrast}</span>
                                                         </div>
-                                                        <div className="flex justify-between bg-white px-4 py-3 rounded-xl shadow-sm border border-gray-100">
-                                                            <span className="text-gray-600 font-medium">Texture</span>
-                                                            <span className="text-gray-900 font-semibold">{scores.measurements.texture}</span>
+                                                        <div className="flex justify-between items-center bg-white/5 backdrop-blur-sm px-5 py-4 rounded-2xl border border-white/10 hover:border-white/20 transition-all">
+                                                            <span className="text-white/70 font-medium">Texture</span>
+                                                            <span className="text-white font-bold text-lg">{scores.measurements.texture}</span>
                                                         </div>
-                                                        <div className="flex justify-between bg-white px-4 py-3 rounded-xl shadow-sm border border-gray-100">
-                                                            <span className="text-gray-600 font-medium">Color Balance</span>
-                                                            <span className="text-gray-900 font-semibold">{scores.measurements.colorBalance}</span>
+                                                        <div className="flex justify-between items-center bg-white/5 backdrop-blur-sm px-5 py-4 rounded-2xl border border-white/10 hover:border-white/20 transition-all">
+                                                            <span className="text-white/70 font-medium">Color Balance</span>
+                                                            <span className="text-white font-bold text-lg">{scores.measurements.colorBalance}</span>
                                                         </div>
                                                     </div>
                                                 </>
                                             ) : (
-                                                <div className="space-y-2">
-                                                    <div className="flex justify-between bg-white px-4 py-3 rounded-xl shadow-sm border border-gray-100">
-                                                        <span className="text-gray-600 font-medium">Face Shape</span>
-                                                        <span className="text-gray-900 font-semibold">{scores.measurements.faceShape}</span>
+                                                <div className="space-y-3">
+                                                    <div className="flex justify-between items-center bg-white/5 backdrop-blur-sm px-5 py-4 rounded-2xl border border-white/10 hover:border-white/20 transition-all">
+                                                        <span className="text-white/70 font-medium">Face Shape</span>
+                                                        <span className="text-white font-bold text-lg">{scores.measurements.faceShape}</span>
                                                     </div>
-                                                    <div className="flex justify-between bg-white px-4 py-3 rounded-xl shadow-sm border border-gray-100">
-                                                        <span className="text-gray-600 font-medium">Eye Type</span>
-                                                        <span className="text-gray-900 font-semibold">{scores.measurements.eyeType}</span>
+                                                    <div className="flex justify-between items-center bg-white/5 backdrop-blur-sm px-5 py-4 rounded-2xl border border-white/10 hover:border-white/20 transition-all">
+                                                        <span className="text-white/70 font-medium">Eye Type</span>
+                                                        <span className="text-white font-bold text-lg">{scores.measurements.eyeType}</span>
                                                     </div>
-                                                    <div className="flex justify-between bg-white px-4 py-3 rounded-xl shadow-sm border border-gray-100">
-                                                        <span className="text-gray-600 font-medium">Canthal Tilt</span>
-                                                        <span className="text-gray-900 font-semibold">{scores.measurements.canthalTilt}</span>
+                                                    <div className="flex justify-between items-center bg-white/5 backdrop-blur-sm px-5 py-4 rounded-2xl border border-white/10 hover:border-white/20 transition-all">
+                                                        <span className="text-white/70 font-medium">Canthal Tilt</span>
+                                                        <span className="text-white font-bold text-lg">{scores.measurements.canthalTilt}</span>
                                                     </div>
-                                                    <div className="flex justify-between bg-white px-4 py-3 rounded-xl shadow-sm border border-gray-100">
-                                                        <span className="text-gray-600 font-medium">Maxilla Development</span>
-                                                        <span className="text-gray-900 font-semibold">{scores.measurements.maxillaDevelopment}</span>
+                                                    <div className="flex justify-between items-center bg-white/5 backdrop-blur-sm px-5 py-4 rounded-2xl border border-white/10 hover:border-white/20 transition-all">
+                                                        <span className="text-white/70 font-medium">Maxilla Development</span>
+                                                        <span className="text-white font-bold text-lg">{scores.measurements.maxillaDevelopment}</span>
                                                     </div>
-                                                    <div className="flex justify-between bg-white px-4 py-3 rounded-xl shadow-sm border border-gray-100">
-                                                        <span className="text-gray-600 font-medium">Nose Shape</span>
-                                                        <span className="text-gray-900 font-semibold">{scores.measurements.noseShape}</span>
+                                                    <div className="flex justify-between items-center bg-white/5 backdrop-blur-sm px-5 py-4 rounded-2xl border border-white/10 hover:border-white/20 transition-all">
+                                                        <span className="text-white/70 font-medium">Nose Shape</span>
+                                                        <span className="text-white font-bold text-lg">{scores.measurements.noseShape}</span>
                                                     </div>
                                                 </div>
                                             )}
@@ -1534,18 +1975,29 @@ export default function FacialAnalysisApp() {
                                     </div>
                                 </div>
 
-                                <div>
-                                    <div className="bg-gradient-to-r from-indigo-500 to-purple-500 text-white p-6 rounded-xl mb-6">
-                                        <div className="text-center">
-                                            <p className="text-sm opacity-90 mb-1">AI Calculated Score</p>
-                                            <p className="text-5xl font-bold mb-2">{scores.current}</p>
-                                            <p className="text-sm opacity-90">Potential Score</p>
-                                            <p className="text-3xl font-semibold">{scores.potential}</p>
-                                            <p className="text-xs opacity-75 mt-2">Based on facial symmetry & proportions</p>
+                                <div className="space-y-6">
+                                    <div className={`relative overflow-hidden rounded-3xl bg-gradient-to-br ${currentTheme.gradient} p-1 shadow-2xl ${currentTheme.glow} animate-glow transition-all duration-1000`}>
+                                        <div className={`bg-gradient-to-br ${currentTheme.bg} rounded-3xl p-8 transition-all duration-1000`}>
+                                            <div className="text-center">
+                                                <p className="text-white/70 text-sm font-medium mb-3 uppercase tracking-wider">Current Score</p>
+                                                <div className="relative inline-block">
+                                                    <p className={`text-7xl font-bold text-transparent bg-gradient-to-r ${currentTheme.text} bg-clip-text mb-4 transition-all duration-1000`}>{scores.current}</p>
+                                                    <div className={`absolute inset-0 blur-2xl opacity-30 -z-10 transition-all duration-1000 ${currentTheme.orb1}`}></div>
+                                                </div>
+                                                
+                                                <div className="w-16 h-1 bg-gradient-to-r from-transparent via-white/50 to-transparent mx-auto my-6"></div>
+                                                
+                                                <p className="text-white/70 text-sm font-medium mb-2 uppercase tracking-wider">Potential Score</p>
+                                                <p className="text-4xl font-bold text-white mb-4">{scores.potential}</p>
+                                                
+                                                <p className="text-white/50 text-xs mt-6">
+                                                    Based on facial symmetry & proportions
+                                                </p>
+                                            </div>
                                         </div>
                                     </div>
 
-                                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+                                    <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
                                         {Object.entries(scores.features).map(([key, value]) => (
                                             <ScoreCard
                                                 key={key}
@@ -1559,16 +2011,21 @@ export default function FacialAnalysisApp() {
 
                             <button
                                 onClick={() => setStep(3)}
-                                className="w-full bg-gradient-to-r from-rose-500 to-pink-500 text-white py-4 rounded-xl font-semibold hover:from-rose-600 hover:to-pink-600 transition-all duration-200 flex items-center justify-center text-lg shadow-md hover:shadow-lg"
+                                className="relative w-full group overflow-hidden"
                             >
-                                Get AI Recommendations
-                                <ArrowRight className="w-5 h-5 ml-2" />
+                                <div className={`absolute inset-0 bg-gradient-to-r ${currentTheme.gradient} rounded-3xl group-hover:scale-105 transition-all duration-700`}></div>
+                                <div className="relative flex items-center justify-center gap-3 py-6 text-white font-bold text-xl">
+                                    <Sparkles className="w-6 h-6 group-hover:rotate-12 transition-transform" />
+                                    <span>Get AI Recommendations</span>
+                                    <ArrowRight className="w-6 h-6 group-hover:translate-x-1 transition-transform" />
+                                </div>
+                                <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 rounded-3xl transition-opacity duration-500"></div>
                             </button>
                         </div>
                     )}
 
                     {step === 3 && scores && (
-                        <div className="space-y-6">
+                        <div className="space-y-6 animate-fadeInUp">
                             {console.log('🎯 Rendering Step 3 - AI Tips page')}
                             {console.log('Current scores:', scores)}
                             <div className="flex justify-between items-center mb-6">
@@ -1577,13 +2034,13 @@ export default function FacialAnalysisApp() {
                                         console.log('Back button clicked');
                                         setStep(2);
                                     }}
-                                    className="flex items-center text-gray-600 hover:text-gray-900 transition-colors"
+                                    className="flex items-center gap-2 px-6 py-3 bg-white/10 backdrop-blur-sm text-white rounded-xl hover:bg-white/20 transition-all duration-300 border border-white/20 font-semibold group"
                                 >
-                                    <ArrowLeft className="w-5 h-5 mr-2" />
-                                    Back to Scores
+                                    <ArrowLeft className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+                                    Back
                                 </button>
-                                <h2 className="text-2xl font-semibold text-gray-900 flex items-center">
-                                    <Sparkles className="w-6 h-6 mr-2 text-rose-500" />
+                                <h2 className="text-2xl font-bold text-white flex items-center gap-3">
+                                    <Sparkles className="w-6 h-6 text-teal-400" />
                                     Personalized Improvement Plan
                                 </h2>
                                 <button
@@ -1886,9 +2343,15 @@ export default function FacialAnalysisApp() {
                                     setImage(null);
                                     setScores(null);
                                 }}
-                                className="w-full bg-gray-100 text-gray-700 py-4 rounded-xl font-semibold hover:bg-gray-200 transition-all duration-300 border border-gray-300"
+                                className="relative w-full group overflow-hidden"
                             >
-                                Start New Analysis
+                                <div className={`absolute inset-0 bg-gradient-to-r ${currentTheme.gradient} rounded-3xl group-hover:scale-105 transition-all duration-700`}></div>
+                                <div className="relative flex items-center justify-center gap-3 py-6 text-white font-bold text-xl">
+                                    <Sparkles className="w-6 h-6 group-hover:rotate-12 transition-transform" />
+                                    <span>Start New Analysis</span>
+                                    <ArrowRight className="w-6 h-6 group-hover:translate-x-1 transition-transform" />
+                                </div>
+                                <div className="absolute inset-0 bg-white/20 opacity-0 group-hover:opacity-100 rounded-3xl transition-opacity duration-500"></div>
                             </button>
                         </div>
                     )}
@@ -1898,336 +2361,212 @@ export default function FacialAnalysisApp() {
             {/* Detailed Recommendation Modal */}
             {expandedRecommendation && (
                 <div 
-                    className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+                    className="fixed inset-0 bg-black/80 backdrop-blur-xl flex items-center justify-center z-50 p-4 animate-fadeInUp"
                     onClick={() => setExpandedRecommendation(null)}
                 >
                     <div 
-                        className="bg-white rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl"
+                        className={`bg-gradient-to-br ${currentTheme.bg} rounded-3xl max-w-5xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-white/20`}
                         onClick={(e) => e.stopPropagation()}
                     >
-                        <div className="sticky top-0 bg-white border-b border-gray-200 p-6 flex justify-between items-center">
-                            <h2 className="text-2xl font-semibold text-gray-900">
-                                Detailed Guide: {expandedRecommendation.feature.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}
-                            </h2>
+                        {/* Modal Header */}
+                        <div className="sticky top-0 bg-white/10 backdrop-blur-xl border-b border-white/20 p-6 flex justify-between items-center z-10">
+                            <div>
+                                <h2 className="text-3xl font-bold text-white mb-1">
+                                    {detailedGuide?.title || `Guide: ${expandedRecommendation.feature.replace(/([A-Z])/g, ' $1').replace(/^./, str => str.toUpperCase())}`}
+                                </h2>
+                                <p className="text-white/60 text-sm">Expert recommendations for improvement</p>
+                            </div>
                             <button 
                                 onClick={() => setExpandedRecommendation(null)}
-                                className="text-gray-400 hover:text-gray-600 transition-colors"
+                                className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 transition-all flex items-center justify-center"
                             >
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                                 </svg>
                             </button>
                         </div>
 
-                        <div className="p-8">
-                            <div className="bg-rose-50 border border-rose-200 rounded-xl p-4 mb-6">
-                                <p className="text-rose-900 font-medium">{expandedRecommendation.recommendation}</p>
+                        <div className="p-8 space-y-8">
+                            {/* Recommendation Overview */}
+                            <div className={`bg-gradient-to-r ${currentTheme.primary} p-6 rounded-3xl`}>
+                                <p className="text-white font-semibold text-lg">{expandedRecommendation.recommendation}</p>
                             </div>
 
-                            {expandedRecommendation.recommendationIndex === 0 && expandedRecommendation.feature === 'faceShape' && (
-                                <div className="space-y-6">
-                                    <h3 className="text-xl font-semibold text-gray-900 mb-4">🧘‍♂️ Facial Exercises for Better Face Shape</h3>
-                                    
-                                    <div className="grid md:grid-cols-2 gap-6">
-                                        <div className="bg-gray-50 p-6 rounded-xl">
-                                            <div className="bg-rose-100 rounded-lg p-8 mb-4 flex items-center justify-center">
-                                                <span className="text-6xl">😮</span>
-                                            </div>
-                                            <h4 className="font-semibold text-gray-900 mb-2">Cheek Lifts</h4>
-                                            <p className="text-gray-700 text-sm mb-3">Smile as wide as you can while keeping your lips closed. Hold for 10 seconds, then relax.</p>
-                                            <ul className="text-sm text-gray-600 space-y-1">
-                                                <li>• Repeat: 3 sets of 15 reps</li>
-                                                <li>• Frequency: Daily, morning and evening</li>
-                                                <li>• Focus: Feel the stretch in your cheeks</li>
-                                            </ul>
-                                        </div>
-
-                                        <div className="bg-gray-50 p-6 rounded-xl">
-                                            <div className="bg-rose-100 rounded-lg p-8 mb-4 flex items-center justify-center">
-                                                <span className="text-6xl">😗</span>
-                                            </div>
-                                            <h4 className="font-semibold text-gray-900 mb-2">Fish Face</h4>
-                                            <p className="text-gray-700 text-sm mb-3">Suck in your cheeks and pucker your lips. Try to smile while holding this position.</p>
-                                            <ul className="text-sm text-gray-600 space-y-1">
-                                                <li>• Repeat: 3 sets of 20 seconds</li>
-                                                <li>• Frequency: Twice daily</li>
-                                                <li>• Focus: Engage cheek and jaw muscles</li>
-                                            </ul>
-                                        </div>
-
-                                        <div className="bg-gray-50 p-6 rounded-xl">
-                                            <div className="bg-rose-100 rounded-lg p-8 mb-4 flex items-center justify-center">
-                                                <span className="text-6xl">💨</span>
-                                            </div>
-                                            <h4 className="font-semibold text-gray-900 mb-2">Air Puffing</h4>
-                                            <p className="text-gray-700 text-sm mb-3">Fill your mouth with air, transfer it from cheek to cheek for 30 seconds.</p>
-                                            <ul className="text-sm text-gray-600 space-y-1">
-                                                <li>• Repeat: 3 sets of 30 seconds</li>
-                                                <li>• Frequency: Daily</li>
-                                                <li>• Focus: Stretch facial muscles evenly</li>
-                                            </ul>
-                                        </div>
-
-                                        <div className="bg-gray-50 p-6 rounded-xl">
-                                            <div className="bg-rose-100 rounded-lg p-8 mb-4 flex items-center justify-center">
-                                                <span className="text-6xl">😤</span>
-                                            </div>
-                                            <h4 className="font-semibold text-gray-900 mb-2">Jaw Release</h4>
-                                            <p className="text-gray-700 text-sm mb-3">Move your jaw like you're chewing while keeping lips together. Breathe in and out.</p>
-                                            <ul className="text-sm text-gray-600 space-y-1">
-                                                <li>• Repeat: 2 sets of 1 minute</li>
-                                                <li>• Frequency: Daily</li>
-                                                <li>• Focus: Relax and release tension</li>
-                                            </ul>
-                                        </div>
-                                    </div>
-
-                                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mt-6">
-                                        <p className="text-sm text-amber-900">
-                                            <strong>💡 Pro Tip:</strong> Consistency is key! Set a reminder to do these exercises twice daily. Results typically visible in 4-6 weeks.
-                                        </p>
-                                    </div>
+                            {loadingDetailedGuide ? (
+                                <div className="flex flex-col items-center justify-center py-12">
+                                    <Loader className="w-12 h-12 text-white animate-spin mb-4" />
+                                    <p className="text-white/70">Generating detailed guide with AI...</p>
                                 </div>
-                            )}
-
-                            {expandedRecommendation.recommendationIndex === 1 && expandedRecommendation.feature === 'faceShape' && (
-                                <div className="space-y-6">
-                                    <h3 className="text-xl font-semibold text-gray-900 mb-4">🧴 Skincare Routine for Face Shape Enhancement</h3>
-                                    
-                                    <div className="space-y-4">
-                                        <div className="bg-gray-50 p-6 rounded-xl">
-                                            <div className="flex items-start gap-4">
-                                                <div className="bg-rose-100 rounded-lg p-4 flex-shrink-0">
-                                                    <span className="text-4xl">🧼</span>
-                                                </div>
-                                                <div className="flex-1">
-                                                    <h4 className="font-semibold text-gray-900 mb-2">Step 1: Gentle Exfoliation (2-3 times/week)</h4>
-                                                    <p className="text-gray-700 text-sm mb-3">Use a gentle facial scrub or chemical exfoliant to remove dead skin cells and promote cell renewal.</p>
-                                                    <div className="bg-white p-3 rounded-lg">
-                                                        <p className="text-sm font-medium text-gray-900 mb-2">Recommended Products:</p>
-                                                        <ul className="text-sm text-gray-600 space-y-1">
-                                                            <li>• CeraVe SA Cleanser (chemical exfoliation)</li>
-                                                            <li>• Paula's Choice 2% BHA Liquid</li>
-                                                            <li>• The Ordinary AHA 30% + BHA 2% (weekly)</li>
-                                                        </ul>
-                                                    </div>
-                                                </div>
-                                            </div>
+                            ) : detailedGuide ? (
+                                <>
+                                    {/* Overview */}
+                                    {detailedGuide.overview && (
+                                        <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-3xl p-6">
+                                            <p className="text-white/90 leading-relaxed">{detailedGuide.overview}</p>
                                         </div>
+                                    )}
 
-                                        <div className="bg-gray-50 p-6 rounded-xl">
-                                            <div className="flex items-start gap-4">
-                                                <div className="bg-rose-100 rounded-lg p-4 flex-shrink-0">
-                                                    <span className="text-4xl">💆</span>
-                                                </div>
-                                                <div className="flex-1">
-                                                    <h4 className="font-semibold text-gray-900 mb-2">Step 2: Facial Massage (Daily)</h4>
-                                                    <p className="text-gray-700 text-sm mb-3">Massage improves circulation, promotes lymphatic drainage, and can help define facial contours.</p>
-                                                    <div className="bg-white p-3 rounded-lg">
-                                                        <p className="text-sm font-medium text-gray-900 mb-2">Technique:</p>
-                                                        <ul className="text-sm text-gray-600 space-y-1">
-                                                            <li>• Use upward strokes from neck to forehead</li>
-                                                            <li>• Apply gentle pressure along jawline</li>
-                                                            <li>• Duration: 5-10 minutes daily</li>
-                                                            <li>• Use face oil or serum for smooth gliding</li>
-                                                        </ul>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="bg-gray-50 p-6 rounded-xl">
-                                            <div className="flex items-start gap-4">
-                                                <div className="bg-rose-100 rounded-lg p-4 flex-shrink-0">
-                                                    <span className="text-4xl">✨</span>
-                                                </div>
-                                                <div className="flex-1">
-                                                    <h4 className="font-semibold text-gray-900 mb-2">Step 3: Hydration & Firming (Daily)</h4>
-                                                    <p className="text-gray-700 text-sm mb-3">Keep skin hydrated and use products with firming ingredients to maintain elasticity.</p>
-                                                    <div className="bg-white p-3 rounded-lg">
-                                                        <p className="text-sm font-medium text-gray-900 mb-2">Key Ingredients:</p>
-                                                        <ul className="text-sm text-gray-600 space-y-1">
-                                                            <li>• Hyaluronic Acid (hydration)</li>
-                                                            <li>• Retinol (collagen production)</li>
-                                                            <li>• Vitamin C (firming & brightness)</li>
-                                                            <li>• Peptides (skin elasticity)</li>
-                                                        </ul>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mt-6">
-                                        <p className="text-sm text-blue-900">
-                                            <strong>💧 Hydration Tip:</strong> Drink 8-10 glasses of water daily. Proper hydration dramatically improves skin appearance and facial definition.
-                                        </p>
-                                    </div>
-                                </div>
-                            )}
-
-                            {expandedRecommendation.recommendationIndex === 2 && expandedRecommendation.feature === 'faceShape' && (
-                                <div className="space-y-6">
-                                    <h3 className="text-xl font-semibold text-gray-900 mb-4">👓 Frame Selection Guide for Face Balance</h3>
-                                    
-                                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-6">
-                                        <p className="text-sm text-blue-900">
-                                            <strong>The Rule:</strong> Choose frames that contrast with your face shape to create balance and harmony.
-                                        </p>
-                                    </div>
-
-                                    <div className="space-y-4">
-                                        <div className="bg-gray-50 p-6 rounded-xl">
-                                            <div className="flex items-start gap-4">
-                                                <div className="bg-rose-100 rounded-lg p-4 flex-shrink-0">
-                                                    <span className="text-4xl">⬜</span>
-                                                </div>
-                                                <div className="flex-1">
-                                                    <h4 className="font-semibold text-gray-900 mb-2">For Round Faces</h4>
-                                                    <p className="text-gray-700 text-sm mb-3">Choose angular, rectangular frames to add definition and length.</p>
-                                                    <div className="grid grid-cols-2 gap-3 mt-3">
-                                                        <div className="bg-white p-3 rounded-lg">
-                                                            <p className="text-sm font-medium text-gray-900">✅ Best Styles:</p>
-                                                            <ul className="text-xs text-gray-600 mt-1 space-y-1">
-                                                                <li>• Rectangular frames</li>
-                                                                <li>• Angular cat-eye</li>
-                                                                <li>• Geometric shapes</li>
-                                                            </ul>
-                                                        </div>
-                                                        <div className="bg-white p-3 rounded-lg">
-                                                            <p className="text-sm font-medium text-gray-900">❌ Avoid:</p>
-                                                            <ul className="text-xs text-gray-600 mt-1 space-y-1">
-                                                                <li>• Round frames</li>
-                                                                <li>• Small frames</li>
-                                                                <li>• Narrow styles</li>
-                                                            </ul>
+                                    {/* Step-by-Step Guide */}
+                                    {detailedGuide.steps && detailedGuide.steps.length > 0 && (
+                                        <div className="space-y-4">
+                                            <h3 className="text-2xl font-bold text-white flex items-center gap-3">
+                                                <span className={`w-1 h-8 bg-gradient-to-b ${currentTheme.primary} rounded-full`}></span>
+                                                Step-by-Step Guide
+                                            </h3>
+                                            <div className="space-y-4">
+                                                {detailedGuide.steps.map((step, index) => (
+                                                    <div key={index} className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6 hover:bg-white/10 transition-all duration-300">
+                                                        <div className="flex items-start gap-4">
+                                                            <div className={`flex-shrink-0 w-12 h-12 rounded-xl bg-gradient-to-br ${currentTheme.primary} flex items-center justify-center`}>
+                                                                <span className="text-white font-bold text-xl">{step.stepNumber}</span>
+                                                            </div>
+                                                            <div className="flex-1">
+                                                                <h4 className="text-xl font-bold text-white mb-2">{step.title}</h4>
+                                                                <p className="text-white/80 mb-4">{step.description}</p>
+                                                                <div className="flex flex-wrap gap-3 mb-3">
+                                                                    <span className="inline-flex items-center gap-2 bg-white/5 px-3 py-1 rounded-full text-sm text-white/70">
+                                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                                                        </svg>
+                                                                        {step.duration}
+                                                                    </span>
+                                                                    <span className="inline-flex items-center gap-2 bg-white/5 px-3 py-1 rounded-full text-sm text-white/70">
+                                                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                                                        </svg>
+                                                                        {step.frequency}
+                                                                    </span>
+                                                                </div>
+                                                                {step.tips && step.tips.length > 0 && (
+                                                                    <div className="mt-3 space-y-1">
+                                                                        {step.tips.map((tip, i) => (
+                                                                            <p key={i} className="text-sm text-white/60 flex items-start gap-2">
+                                                                                <span className={`text-${currentTheme.accent}`}>💡</span>
+                                                                                {tip}
+                                                                            </p>
+                                                                        ))}
+                                                                    </div>
+                                                                )}
+                                                            </div>
                                                         </div>
                                                     </div>
-                                                </div>
+                                                ))}
                                             </div>
                                         </div>
+                                    )}
 
-                                        <div className="bg-gray-50 p-6 rounded-xl">
-                                            <div className="flex items-start gap-4">
-                                                <div className="bg-rose-100 rounded-lg p-4 flex-shrink-0">
-                                                    <span className="text-4xl">🔷</span>
-                                                </div>
-                                                <div className="flex-1">
-                                                    <h4 className="font-semibold text-gray-900 mb-2">For Square Faces</h4>
-                                                    <p className="text-gray-700 text-sm mb-3">Choose round or oval frames to soften angular features.</p>
-                                                    <div className="grid grid-cols-2 gap-3 mt-3">
-                                                        <div className="bg-white p-3 rounded-lg">
-                                                            <p className="text-sm font-medium text-gray-900">✅ Best Styles:</p>
-                                                            <ul className="text-xs text-gray-600 mt-1 space-y-1">
-                                                                <li>• Round frames</li>
-                                                                <li>• Oval frames</li>
-                                                                <li>• Aviators</li>
-                                                            </ul>
-                                                        </div>
-                                                        <div className="bg-white p-3 rounded-lg">
-                                                            <p className="text-sm font-medium text-gray-900">❌ Avoid:</p>
-                                                            <ul className="text-xs text-gray-600 mt-1 space-y-1">
-                                                                <li>• Square frames</li>
-                                                                <li>• Boxy styles</li>
-                                                                <li>• Angular designs</li>
-                                                            </ul>
-                                                        </div>
+                                    {/* Expected Results Timeline */}
+                                    {detailedGuide.expectedResults && (
+                                        <div className="space-y-4">
+                                            <h3 className="text-2xl font-bold text-white flex items-center gap-3">
+                                                <span className={`w-1 h-8 bg-gradient-to-b ${currentTheme.primary} rounded-full`}></span>
+                                                Expected Results
+                                            </h3>
+                                            <div className="grid md:grid-cols-3 gap-4">
+                                                {detailedGuide.expectedResults.week1 && (
+                                                    <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
+                                                        <div className={`text-2xl font-bold text-transparent bg-gradient-to-r ${currentTheme.text} bg-clip-text mb-2`}>Week 1</div>
+                                                        <p className="text-white/70 text-sm">{detailedGuide.expectedResults.week1}</p>
                                                     </div>
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        <div className="bg-gray-50 p-6 rounded-xl">
-                                            <div className="flex items-start gap-4">
-                                                <div className="bg-rose-100 rounded-lg p-4 flex-shrink-0">
-                                                    <span className="text-4xl">⬭</span>
-                                                </div>
-                                                <div className="flex-1">
-                                                    <h4 className="font-semibold text-gray-900 mb-2">For Oval Faces</h4>
-                                                    <p className="text-gray-700 text-sm mb-3">Most shapes work! Experiment with bold, statement frames.</p>
-                                                    <div className="grid grid-cols-2 gap-3 mt-3">
-                                                        <div className="bg-white p-3 rounded-lg">
-                                                            <p className="text-sm font-medium text-gray-900">✅ Best Styles:</p>
-                                                            <ul className="text-xs text-gray-600 mt-1 space-y-1">
-                                                                <li>• Oversized frames</li>
-                                                                <li>• Wayfarers</li>
-                                                                <li>• Cat-eye</li>
-                                                            </ul>
-                                                        </div>
-                                                        <div className="bg-white p-3 rounded-lg">
-                                                            <p className="text-sm font-medium text-gray-900">💡 Tip:</p>
-                                                            <ul className="text-xs text-gray-600 mt-1 space-y-1">
-                                                                <li>• Try bold colors</li>
-                                                                <li>• Experiment freely</li>
-                                                                <li>• Have fun!</li>
-                                                            </ul>
-                                                        </div>
+                                                )}
+                                                {detailedGuide.expectedResults.week4 && (
+                                                    <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
+                                                        <div className={`text-2xl font-bold text-transparent bg-gradient-to-r ${currentTheme.text} bg-clip-text mb-2`}>Week 4</div>
+                                                        <p className="text-white/70 text-sm">{detailedGuide.expectedResults.week4}</p>
                                                     </div>
+                                                )}
+                                                {detailedGuide.expectedResults.week8 && (
+                                                    <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
+                                                        <div className={`text-2xl font-bold text-transparent bg-gradient-to-r ${currentTheme.text} bg-clip-text mb-2`}>Week 8+</div>
+                                                        <p className="text-white/70 text-sm">{detailedGuide.expectedResults.week8}</p>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                    )}
+
+                                    {/* Do's and Don'ts */}
+                                    {(detailedGuide.dos || detailedGuide.donts) && (
+                                        <div className="grid md:grid-cols-2 gap-6">
+                                            {detailedGuide.dos && detailedGuide.dos.length > 0 && (
+                                                <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
+                                                    <h4 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                                                        <span className="text-2xl">✅</span>
+                                                        Do This
+                                                    </h4>
+                                                    <ul className="space-y-2">
+                                                        {detailedGuide.dos.map((item, i) => (
+                                                            <li key={i} className="text-white/80 text-sm flex items-start gap-2">
+                                                                <span className="text-green-400 mt-1">●</span>
+                                                                {item}
+                                                            </li>
+                                                        ))}
+                                                    </ul>
                                                 </div>
+                                            )}
+                                            {detailedGuide.donts && detailedGuide.donts.length > 0 && (
+                                                <div className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-6">
+                                                    <h4 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                                                        <span className="text-2xl">❌</span>
+                                                        Avoid This
+                                                    </h4>
+                                                    <ul className="space-y-2">
+                                                        {detailedGuide.donts.map((item, i) => (
+                                                            <li key={i} className="text-white/80 text-sm flex items-start gap-2">
+                                                                <span className="text-red-400 mt-1">●</span>
+                                                                {item}
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {/* Pro Tips */}
+                                    {detailedGuide.proTips && detailedGuide.proTips.length > 0 && (
+                                        <div className={`bg-gradient-to-br from-amber-500/10 to-orange-500/10 border border-amber-500/20 rounded-2xl p-6`}>
+                                            <h4 className="text-xl font-bold text-white mb-4 flex items-center gap-2">
+                                                <span className="text-2xl">💡</span>
+                                                Pro Tips
+                                            </h4>
+                                            <div className="space-y-2">
+                                                {detailedGuide.proTips.map((tip, i) => (
+                                                    <p key={i} className="text-white/90 text-sm flex items-start gap-2">
+                                                        <span className="text-amber-400">▸</span>
+                                                        {tip}
+                                                    </p>
+                                                ))}
                                             </div>
                                         </div>
-                                    </div>
+                                    )}
 
-                                    <div className="bg-gradient-to-r from-rose-50 to-pink-50 border border-rose-200 rounded-xl p-6 mt-6">
-                                        <h4 className="font-semibold text-gray-900 mb-3">🛍️ Where to Try:</h4>
-                                        <div className="grid md:grid-cols-3 gap-3">
-                                            <div className="bg-white p-3 rounded-lg">
-                                                <p className="font-medium text-gray-900 text-sm">Warby Parker</p>
-                                                <p className="text-xs text-gray-600">Free home try-on</p>
-                                            </div>
-                                            <div className="bg-white p-3 rounded-lg">
-                                                <p className="font-medium text-gray-900 text-sm">Zenni Optical</p>
-                                                <p className="text-xs text-gray-600">Affordable options</p>
-                                            </div>
-                                            <div className="bg-white p-3 rounded-lg">
-                                                <p className="font-medium text-gray-900 text-sm">Local Optician</p>
-                                                <p className="text-xs text-gray-600">Professional fitting</p>
+                                    {/* Related Products */}
+                                    {detailedGuide.relatedProducts && detailedGuide.relatedProducts.length > 0 && (
+                                        <div className="space-y-4">
+                                            <h3 className="text-2xl font-bold text-white flex items-center gap-3">
+                                                <span className={`w-1 h-8 bg-gradient-to-b ${currentTheme.primary} rounded-full`}></span>
+                                                Recommended Products
+                                            </h3>
+                                            <div className="grid md:grid-cols-3 gap-4">
+                                                {detailedGuide.relatedProducts.map((product, i) => (
+                                                    <div key={i} className="bg-white/5 backdrop-blur-sm border border-white/10 rounded-2xl p-4 hover:bg-white/10 transition-all">
+                                                        <p className="text-white/80 text-sm">{product}</p>
+                                                    </div>
+                                                ))}
                                             </div>
                                         </div>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Default content for other recommendations */}
-                            {!((expandedRecommendation.recommendationIndex >= 0 && expandedRecommendation.recommendationIndex <= 2) && expandedRecommendation.feature === 'faceShape') && (
-                                <div className="space-y-6">
-                                    <div className="bg-blue-50 border border-blue-200 rounded-xl p-6">
-                                        <p className="text-blue-900">
-                                            <strong>📚 Coming Soon:</strong> Detailed guides for this recommendation are being prepared. In the meantime, focus on consistency with the basic recommendation above.
-                                        </p>
-                                    </div>
-
-                                    <div className="space-y-4">
-                                        <h3 className="text-lg font-semibold text-gray-900">General Tips:</h3>
-                                        <div className="grid md:grid-cols-2 gap-4">
-                                            <div className="bg-gray-50 p-4 rounded-xl">
-                                                <h4 className="font-medium text-gray-900 mb-2">✅ Do:</h4>
-                                                <ul className="text-sm text-gray-700 space-y-1">
-                                                    <li>• Be consistent with your routine</li>
-                                                    <li>• Track your progress with photos</li>
-                                                    <li>• Stay patient - results take time</li>
-                                                </ul>
-                                            </div>
-                                            <div className="bg-gray-50 p-4 rounded-xl">
-                                                <h4 className="font-medium text-gray-900 mb-2">❌ Don't:</h4>
-                                                <ul className="text-sm text-gray-700 space-y-1">
-                                                    <li>• Expect overnight results</li>
-                                                    <li>• Skip days frequently</li>
-                                                    <li>• Overdo exercises or products</li>
-                                                </ul>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
+                                    )}
+                                </>
+                            ) : null}
                         </div>
 
-                        <div className="sticky bottom-0 bg-gray-50 border-t border-gray-200 p-6">
+                        <div className="sticky bottom-0 bg-white/5 backdrop-blur-sm border-t border-white/10 p-6">
                             <button
                                 onClick={() => setExpandedRecommendation(null)}
-                                className="w-full bg-gradient-to-r from-rose-500 to-pink-500 text-white py-3 rounded-xl font-semibold hover:from-rose-600 hover:to-pink-600 transition-all"
+                                className={`w-full bg-gradient-to-r ${currentTheme.gradient} text-white py-4 rounded-2xl font-bold text-lg hover:scale-105 transition-all duration-300 shadow-xl`}
                             >
-                                Got it! Back to Recommendations
+                                Got it! Back to Recommendations ✓
                             </button>
                         </div>
                     </div>
